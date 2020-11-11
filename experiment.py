@@ -83,6 +83,8 @@ class Model():
         self.num_heads = self.model.bert.encoder.layer[0].attention.self.num_attention_heads # c num of attention heads
 
     def get_representations(self, context, position):
+        print("\n get_rep Context : \n")
+        print(context)
         # Hook for saving the representation
         def extract_representation_hook(module,
                                         input,
@@ -109,10 +111,11 @@ class Model():
                             position=position,
                             representations=representation,
                             layer=layer)))
-            print("\nShape of context \n", context.shape)
-            print("\n\nContext:\n\n")
-            print(context)
-            logits, past = self.model(context)
+ 
+            segment_ids = [0] * len(context)
+            token_tensors = torch.tensor([context.tolist()]).to(self.device)
+            segment_tensors = torch.tensor([segment_ids]).to(self.device)
+            outputs = self.model(token_tensors, token_type_ids = segment_tensors)
             for h in handles:
                 h.remove()
         # print(representation[0][:5])
@@ -124,7 +127,7 @@ class Model():
             if len(c) > 1:
                 raise ValueError(f"Multiple tokens not allowed: {c}")
         outputs = [c[0] for c in candidates]
-        logits, past = self.model(context)[:2]
+        logits = self.model(context)[:2]      # changed
         logits = logits[:, -1, :]
         probs = F.softmax(logits, dim=-1)
         return probs[:, outputs].tolist()
@@ -318,6 +321,7 @@ class Model():
 
         word2intervention_results = {}
         for word in tqdm(word2intervention, desc='words'):
+            print("\nword = ", word)
             word2intervention_results[word] = self.neuron_intervention_single_experiment(
                 word2intervention[word], intervention_type, layers_to_adj, neurons_to_adj,
                 alpha, intervention_loc=intervention_loc)
@@ -338,9 +342,12 @@ class Model():
             '''
             Compute representations for base terms (one for each side of bias)
             '''
+
+            print("\nintervention = ", intervention)
             base_representations = self.get_representations(
                 intervention.base_strings_tok[0],
                 intervention.position)
+            # print("\nbase rep = ", base_representations)
             man_representations = self.get_representations(
                 intervention.base_strings_tok[1],
                 intervention.position)
@@ -639,7 +646,7 @@ def main():
     tokenizer = BertTokenizer.from_pretrained('bert-base-cased')           # changed
     model = Model(device=DEVICE)
 
-    base_sentence = "The {} said that"
+    base_sentence = "[CLS] The {} said that [SEP]"
     biased_word = "teacher"
     intervention = Intervention(
             tokenizer,

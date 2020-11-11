@@ -53,24 +53,24 @@ def get_template_list(indices=None):
     # "That" sentences are ours
     # "Because" sentences are a subset
     # from https://arxiv.org/pdf/1807.11714.pdf (Lu et al.)
-    templates = [
-        "The {} said that",
-        "The {} yelled that",
-        "The {} whispered that",
-        "The {} wanted that",
-        "The {} desired that",
-        "The {} wished that",
-        "The {} ate because",
-        "The {} ran because",
-        "The {} drove because",
-        "The {} slept because",
-        "The {} cried because",
-        "The {} laughed because",
-        "The {} went home because",
-        "The {} stayed up because",
-        "The {} was fired because",
-        "The {} was promoted because",
-        "The {} yelled because",
+    templates = [   
+        "[CLS] The {} said that [SEP]",      # c
+        # "The {} yelled that",
+        # "The {} whispered that",
+        # "The {} wanted that",
+        # "The {} desired that",
+        # "The {} wished that",
+        # "The {} ate because",
+        # "The {} ran because",
+        # "The {} drove because",
+        # "The {} slept because",
+        # "The {} cried because",
+        # "The {} laughed because",
+        # "The {} went home because",
+        # "The {} stayed up because",
+        # "The {} was fired because",
+        # "The {} was promoted because",
+        # "The {} yelled because",
     ]
     if indices:
         subset_templates = [templates[i - 1] for i in indices]
@@ -138,12 +138,14 @@ def run_all(
     # Iterate over all possible templates.
     for temp in templates:
         print("Running template '{}' now...".format(temp), flush=True)
+        print("\ntemplate = ", temp)
         # Fill in all professions into current template
         interventions = construct_interventions(temp, professions, tokenizer, device)
         # Consider all the intervention types
         for itype in intervention_types:
             print("\t Running with intervention: {}".format(itype), flush=True)
             # Run actual exp.
+            print("\nItype = ", itype)
             intervention_results = model.neuron_intervention_experiment(
                 interventions, itype, alpha=1.0
             )
