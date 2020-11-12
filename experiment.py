@@ -7,8 +7,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
-from transformers import GPT2LMHeadModel, GPT2Tokenizer
-from transformers import BertModel, BertTokenizer, BertForMaskedLM          # added
+from transformers import BertTokenizer, BertForMaskedLM, RobertaTokenizer, RobertaForMaskedLM          # added
 
 from attention_intervention_model import AttentionOverride
 from utils import batch, convert_results_to_pd
@@ -61,10 +60,13 @@ class Model():
                  device='cpu',
                  output_attentions=False,
                  random_weights=False,
-                 gpt2_version='bert-base-cased'):       # changed
+                 gpt2_version='roberta-base'):       # changed
         super()
         self.device = device
-        self.model = BertForMaskedLM.from_pretrained(         # changed
+        self.version = gpt2_version
+
+        self.masked_lm = BertForMaskedLM if gpt2_version == 'bert-base-cased' else RobertaForMaskedLM
+        self.model = self.masked_lm.from_pretrained(         # changed
             gpt2_version,
             output_attentions=output_attentions)
         self.model.eval()
@@ -76,11 +78,12 @@ class Model():
         # Options
         self.top_k = 5
         # 12 for GPT-2
-        self.num_layers = len(self.model.bert.encoder.layer) # c
+        self.model_base = self.model.bert if gpt2_version == 'bert-base-cased' else self.model.roberta
+        self.num_layers = len(self.model_base.encoder.layer) # c
         # 768 for GPT-2
-        self.num_neurons = self.model.bert.embeddings.word_embeddings.weight.shape[1] # c
+        self.num_neurons = self.model_base.embeddings.word_embeddings.weight.shape[1] # c
         # 12 for GPT-2
-        self.num_heads = self.model.bert.encoder.layer[0].attention.self.num_attention_heads # c num of attention heads
+        self.num_heads = self.model_base.encoder.layer[0].attention.self.num_attention_heads # c num of attention heads
 
     def get_representations(self, context, position):
         #print("\n get_rep Context : \n")
@@ -95,17 +98,18 @@ class Model():
             representations[layer] = output[0][position]
         handles = []
         representation = {}
+
         with torch.no_grad():
             # construct all the hooks
             # word embeddings will be layer -1
-            handles.append(self.model.bert.embeddings.word_embeddings.register_forward_hook(
+            handles.append(self.model_base.embeddings.word_embeddings.register_forward_hook(
                     partial(extract_representation_hook,
                             position=position,
                             representations=representation,
                             layer=-1))) # c
             # hidden layers
             for layer in range(self.num_layers):
-                handles.append(self.model.bert.encoder.layer[layer]\
+                handles.append(self.model_base.encoder.layer[layer]\
                                    .output.register_forward_hook(
                     partial(extract_representation_hook,
                             position=position,
@@ -115,6 +119,8 @@ class Model():
             segment_ids = [0] * len(context)
             token_tensors = torch.tensor([context.tolist()]).to(self.device)
             segment_tensors = torch.tensor([segment_ids]).to(self.device)
+
+            # do a forward pass to get intermediate neuron values
             outputs = self.model(token_tensors, token_type_ids = segment_tensors)
             for h in handles:
                 h.remove()
@@ -222,7 +228,7 @@ class Model():
             n_list.append(list(np.sort(unsorted_n_list)))
           intervention_rep = alpha * rep[layer][n_list]
           if layer == -1:
-              wte_intervention_handle = self.model.bert.embeddings.word_embeddings.register_forward_hook(
+              wte_intervention_handle = self.model_base.embeddings.word_embeddings.register_forward_hook(
                   partial(intervention_hook,
                           position=position,
                           neurons=n_list,
@@ -230,7 +236,7 @@ class Model():
                           intervention_type=intervention_type))
               handle_list.append(wte_intervention_handle)
           else:
-              mlp_intervention_handle = self.model.bert.encoder.layer[layer]\
+              mlp_intervention_handle = self.model_base.encoder.layer[layer]\
                                             .output.register_forward_hook(
                   partial(intervention_hook,
                           position=position,
@@ -253,7 +259,7 @@ class Model():
         # Recreate model and prune head
         save_model = self.model
         # TODO Make this more efficient
-        self.model = BertForMaskedLM.from_pretrained('bert-base-cased')          # changed
+        self.model = RobertaForMaskedLM.from_pretrained('roberta-base')          # changed
         self.model.prune_heads({layer: [head]})
         self.model.eval()
 
@@ -298,7 +304,7 @@ class Model():
                 attn_override = d['attention_override']
                 attn_override_mask = d['attention_override_mask']
                 layer = d['layer']
-                hooks.append(self.model.bert.encoder.layer[layer].attention.register_forward_hook(
+                hooks.append(self.model_base.encoder.layer[layer].attention.register_forward_hook(
                     partial(intervention_hook,
                             attn_override=attn_override,
                             attn_override_mask=attn_override_mask)))
@@ -646,8 +652,11 @@ class Model():
 
 def main():
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    tokenizer = BertTokenizer.from_pretrained('bert-base-cased')           # changed
+
     model = Model(device=DEVICE)
+
+    tokenizer_used = BertTokenizer if model.version == 'bert-base-cased' else RobertaTokenizer
+    tokenizer = tokenizer_used.from_pretrained(model.version)           # changed
 
     base_sentence = "[CLS] The {} said that [SEP]"
     biased_word = "teacher"

@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 
 import torch
-from transformers import BertTokenizer
+from transformers import BertTokenizer,  BertForMaskedLM, RobertaTokenizer, RobertaForMaskedLM
 
 from experiment import Intervention, Model
 from utils import convert_results_to_pd
@@ -123,7 +123,11 @@ def run_all(
     templates = get_template_list(template_indices)
     intervention_types = get_intervention_types()
     # Initialize Model and Tokenizer.
-    tokenizer = BertTokenizer.from_pretrained(model_type)               # Changed
+
+    tokenizer_used = BertTokenizer if model_type == 'bert-base-cased' else RobertaTokenizer
+
+    tokenizer = tokenizer_used.from_pretrained(model_type)               # Changed
+
     model = Model(device=device, gpt2_version=model_type, random_weights=random_weights)
 
     # Set up folder if it does not exist.
