@@ -66,6 +66,8 @@ class Model():
         self.version = gpt2_version
 
         self.masked_lm = BertForMaskedLM if gpt2_version == 'bert-base-cased' else RobertaForMaskedLM
+        print("Using model:", self.version)
+
         self.model = self.masked_lm.from_pretrained(         # changed
             gpt2_version,
             output_attentions=output_attentions)
