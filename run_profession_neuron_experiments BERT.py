@@ -54,7 +54,7 @@ def get_template_list(indices=None):
     # "Because" sentences are a subset
     # from https://arxiv.org/pdf/1807.11714.pdf (Lu et al.)
     templates = [   
-        "[CLS] The {} said that [SEP]",      # c
+        "The {} said that",      # c
         # "The {} yelled that",
         # "The {} whispered that",
         # "The {} wanted that",
@@ -138,14 +138,14 @@ def run_all(
     # Iterate over all possible templates.
     for temp in templates:
         print("Running template '{}' now...".format(temp), flush=True)
-        print("\ntemplate = ", temp)
+        #print("\ntemplate = ", temp)
         # Fill in all professions into current template
         interventions = construct_interventions(temp, professions, tokenizer, device)
         # Consider all the intervention types
         for itype in intervention_types:
             print("\t Running with intervention: {}".format(itype), flush=True)
             # Run actual exp.
-            print("\nItype = ", itype)
+            #print("\nItype = ", itype)
             intervention_results = model.neuron_intervention_experiment(
                 interventions, itype, alpha=1.0
             )

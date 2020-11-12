@@ -83,8 +83,8 @@ class Model():
         self.num_heads = self.model.bert.encoder.layer[0].attention.self.num_attention_heads # c num of attention heads
 
     def get_representations(self, context, position):
-        print("\n get_rep Context : \n")
-        print(context)
+        #print("\n get_rep Context : \n")
+        #print(context)
         # Hook for saving the representation
         def extract_representation_hook(module,
                                         input,
@@ -127,7 +127,10 @@ class Model():
             if len(c) > 1:
                 raise ValueError(f"Multiple tokens not allowed: {c}")
         outputs = [c[0] for c in candidates]
-        logits = self.model(context)[:2]      # changed
+        #print("context inside new func:", context, context.shape)
+        #logits = self.model(context)[:2]      # changed
+        logits = self.model(context)[0]
+        #print(logits.shape)
         logits = logits[:, -1, :]
         probs = F.softmax(logits, dim=-1)
         return probs[:, outputs].tolist()
@@ -321,7 +324,7 @@ class Model():
 
         word2intervention_results = {}
         for word in tqdm(word2intervention, desc='words'):
-            print("\nword = ", word)
+            #print("\word = n", word)
             word2intervention_results[word] = self.neuron_intervention_single_experiment(
                 word2intervention[word], intervention_type, layers_to_adj, neurons_to_adj,
                 alpha, intervention_loc=intervention_loc)
@@ -343,7 +346,7 @@ class Model():
             Compute representations for base terms (one for each side of bias)
             '''
 
-            print("\nintervention = ", intervention)
+            #print("\nintervention = ", intervention)
             base_representations = self.get_representations(
                 intervention.base_strings_tok[0],
                 intervention.position)
