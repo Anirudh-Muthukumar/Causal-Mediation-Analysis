@@ -113,6 +113,7 @@ class Model():
                             layer=layer)))
  
             segment_ids = [0] * len(context)
+            print("context = ", context)
             token_tensors = torch.tensor([context.tolist()]).to(self.device)
             segment_tensors = torch.tensor([segment_ids]).to(self.device)
             outputs = self.model(token_tensors, token_type_ids = segment_tensors)
@@ -127,12 +128,29 @@ class Model():
             if len(c) > 1:
                 raise ValueError(f"Multiple tokens not allowed: {c}")
         outputs = [c[0] for c in candidates]
+        print("outputs = ", outputs)
+        tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+        
+
+        print("Candidate 1 = ", tokenizer.decode([outputs[0]]))
+        print("Candidate 2 = ", tokenizer.decode([outputs[1]]))
         #print("context inside new func:", context, context.shape)
         #logits = self.model(context)[:2]      # changed
         logits = self.model(context)[0]
-        #print(logits.shape)
-        logits = logits[:, -1, :]
+        print(logits.shape)
+        logits = logits[:, -4, :]
         probs = F.softmax(logits, dim=-1)
+        sorted_probs = torch.argsort(probs)
+        print("sorted probs = ", sorted_probs)
+        
+        print("Cand1 pos = ", 28996 - torch.where(sorted_probs == outputs[0])[1].tolist()[0])
+        print("Cand2 pos = ", 28996 - torch.where(sorted_probs == outputs[1])[1].tolist()[0])
+        
+        print("Top 5 predictions : ")
+        for idx in reversed(sorted_probs[0][-5:]):
+            print(idx)
+            print(tokenizer.decode([idx]), probs[:, idx])
+
         return probs[:, outputs].tolist()
 
     def get_probabilities_for_examples_multitoken(self, context, candidates):
@@ -649,7 +667,7 @@ def main():
     tokenizer = BertTokenizer.from_pretrained('bert-base-cased')           # changed
     model = Model(device=DEVICE)
 
-    base_sentence = "[CLS] The {} said that [SEP]"
+    base_sentence = "The {} said that"
     biased_word = "teacher"
     intervention = Intervention(
             tokenizer,

@@ -40,7 +40,7 @@ opt = parser.parse_args()
 def get_profession_list():
     # Get the list of all considered professions
     word_list = []
-    with open("experiment_data/professions.json", "r") as f:
+    with open("experiment_data/professions2.json", "r") as f:
         for l in f:
             # there is only one line that eval"s to an array
             for j in eval(l):
@@ -54,7 +54,7 @@ def get_template_list(indices=None):
     # "Because" sentences are a subset
     # from https://arxiv.org/pdf/1807.11714.pdf (Lu et al.)
     templates = [   
-        "The {} said that",      # c
+        "The {} said that [MASK] is tired",      # c
         # "The {} yelled that",
         # "The {} whispered that",
         # "The {} wanted that",
