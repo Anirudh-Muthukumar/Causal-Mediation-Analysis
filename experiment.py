@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
-from transformers import BertTokenizer, BertForMaskedLM, RobertaTokenizer, RobertaForMaskedLM          # added
+from transformers import BertTokenizer, BertForMaskedLM, RobertaTokenizer, RobertaForMaskedLM
 
 from attention_intervention_model import AttentionOverride
 from utils import batch, convert_results_to_pd
@@ -60,16 +60,15 @@ class Model():
                  device='cpu',
                  output_attentions=False,
                  random_weights=False,
-                 gpt2_version='roberta-base'):       # changed
+                 model='bert-base-cased'):
         super()
         self.device = device
-        self.version = gpt2_version
+        self.version = model
 
-        self.masked_lm = BertForMaskedLM if gpt2_version == 'bert-base-cased' else RobertaForMaskedLM
-        print("Using model:", self.version)
+        self.masked_lm = BertForMaskedLM if model == 'bert-base-cased' else RobertaForMaskedLM
 
-        self.model = self.masked_lm.from_pretrained(         # changed
-            gpt2_version,
+        self.model = self.masked_lm.from_pretrained(
+            model,
             output_attentions=output_attentions)
         self.model.eval()
         self.model.to(device)
@@ -77,19 +76,12 @@ class Model():
             print('Randomizing weights')
             self.model.init_weights()
 
-        # Options
-        self.top_k = 5
-        # 12 for GPT-2
-        self.model_base = self.model.bert if gpt2_version == 'bert-base-cased' else self.model.roberta
-        self.num_layers = len(self.model_base.encoder.layer) # c
-        # 768 for GPT-2
-        self.num_neurons = self.model_base.embeddings.word_embeddings.weight.shape[1] # c
-        # 12 for GPT-2
-        self.num_heads = self.model_base.encoder.layer[0].attention.self.num_attention_heads # c num of attention heads
+        self.model_base = self.model.bert if model == 'bert-base-cased' else self.model.roberta
+        self.num_layers = len(self.model_base.encoder.layer)
+        self.num_neurons = self.model_base.embeddings.word_embeddings.weight.shape[1]
+        self.num_heads = self.model_base.encoder.layer[0].attention.self.num_attention_heads
 
     def get_representations(self, context, position):
-        #print("\n get_rep Context : \n")
-        #print(context)
         # Hook for saving the representation
         def extract_representation_hook(module,
                                         input,
@@ -108,7 +100,7 @@ class Model():
                     partial(extract_representation_hook,
                             position=position,
                             representations=representation,
-                            layer=-1))) # c
+                            layer=-1)))
             # hidden layers
             for layer in range(self.num_layers):
                 handles.append(self.model_base.encoder.layer[layer]\
@@ -126,7 +118,7 @@ class Model():
             outputs = self.model(token_tensors, token_type_ids = segment_tensors)
             for h in handles:
                 h.remove()
-        # print(representation[0][:5])
+
         return representation
 
     def get_probabilities_for_examples(self, context, candidates):
@@ -135,10 +127,7 @@ class Model():
             if len(c) > 1:
                 raise ValueError(f"Multiple tokens not allowed: {c}")
         outputs = [c[0] for c in candidates]
-        #print("context inside new func:", context, context.shape)
-        #logits = self.model(context)[:2]      # changed
         logits = self.model(context)[0]
-        #print(logits.shape)
         logits = logits[:, -1, :]
         probs = F.softmax(logits, dim=-1)
         return probs[:, outputs].tolist()
@@ -261,7 +250,7 @@ class Model():
         # Recreate model and prune head
         save_model = self.model
         # TODO Make this more efficient
-        self.model = RobertaForMaskedLM.from_pretrained('roberta-base')          # changed
+        self.model = self.masked_lm.from_pretrained(self.model.version)
         self.model.prune_heads({layer: [head]})
         self.model.eval()
 
@@ -332,7 +321,6 @@ class Model():
 
         word2intervention_results = {}
         for word in tqdm(word2intervention, desc='words'):
-            #print("\word = n", word)
             word2intervention_results[word] = self.neuron_intervention_single_experiment(
                 word2intervention[word], intervention_type, layers_to_adj, neurons_to_adj,
                 alpha, intervention_loc=intervention_loc)
@@ -354,11 +342,9 @@ class Model():
             Compute representations for base terms (one for each side of bias)
             '''
 
-            #print("\nintervention = ", intervention)
             base_representations = self.get_representations(
                 intervention.base_strings_tok[0],
                 intervention.position)
-            # print("\nbase rep = ", base_representations)
             man_representations = self.get_representations(
                 intervention.base_strings_tok[1],
                 intervention.position)

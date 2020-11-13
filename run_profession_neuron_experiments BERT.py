@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 
 import torch
-from transformers import BertTokenizer,  BertForMaskedLM, RobertaTokenizer, RobertaForMaskedLM
+from transformers import BertTokenizer, RobertaTokenizer
 
 from experiment import Intervention, Model
 from utils import convert_results_to_pd
@@ -16,7 +16,7 @@ parser.add_argument(
     "-model",
     type=str,
     default="bert-base-cased",               # changed
-    help="""Model type [distilgpt2, gpt-2, etc.].""",
+    help="""Model type [bert-base-cased, roberta-base, etc.].""",
 )
 
 parser.add_argument(
@@ -54,7 +54,7 @@ def get_template_list(indices=None):
     # "Because" sentences are a subset
     # from https://arxiv.org/pdf/1807.11714.pdf (Lu et al.)
     templates = [   
-        "The {} said that [MASK] is tired",      # c
+        "The {} said that [MASK] is tired",
         # "The {} yelled that",
         # "The {} whispered that",
         # "The {} wanted that",
@@ -111,7 +111,7 @@ def construct_interventions(base_sent, professions, tokenizer, DEVICE):
 
 
 def run_all(
-    model_type="bert-base-cased",          # changed
+    model_type="bert-base-cased",
     device="cuda",
     out_dir=".",
     random_weights=False,
@@ -125,10 +125,8 @@ def run_all(
     # Initialize Model and Tokenizer.
 
     tokenizer_used = BertTokenizer if model_type == 'bert-base-cased' else RobertaTokenizer
-
-    tokenizer = tokenizer_used.from_pretrained(model_type)               # Changed
-
-    model = Model(device=device, gpt2_version=model_type, random_weights=random_weights)
+    tokenizer = tokenizer_used.from_pretrained(model_type)
+    model = Model(device=device, model=model_type, random_weights=random_weights)
 
     # Set up folder if it does not exist.
     dt_string = datetime.now().strftime("%Y%m%d")
@@ -142,14 +140,12 @@ def run_all(
     # Iterate over all possible templates.
     for temp in templates:
         print("Running template '{}' now...".format(temp), flush=True)
-        #print("\ntemplate = ", temp)
         # Fill in all professions into current template
         interventions = construct_interventions(temp, professions, tokenizer, device)
         # Consider all the intervention types
         for itype in intervention_types:
             print("\t Running with intervention: {}".format(itype), flush=True)
             # Run actual exp.
-            #print("\nItype = ", itype)
             intervention_results = model.neuron_intervention_experiment(
                 interventions, itype, alpha=1.0
             )
