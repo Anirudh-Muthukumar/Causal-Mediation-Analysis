@@ -20,6 +20,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "-itype",
+    type=str,
+    default="man_direct",               # changed
+    help="Intervention type",
+)
+
+parser.add_argument(
     "-out_dir", default=".", type=str, help="""Path of the result folder."""
 )
 
@@ -82,10 +89,11 @@ def get_template_list(indices=None):
 
 def get_intervention_types():
     return [
-        "man_direct",
-        "man_indirect",
-        "woman_direct",
-        "woman_indirect",
+        opt.itype
+        #"man_direct",
+        #"man_indirect",
+        #"woman_direct",
+        #"woman_indirect",
     ]
 
 
