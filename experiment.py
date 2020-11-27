@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
-from transformers import BertTokenizer, BertForMaskedLM, RobertaTokenizer, RobertaForMaskedLM          # added
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
 from attention_intervention_model import AttentionOverride
 from utils import batch, convert_results_to_pd
@@ -60,15 +60,10 @@ class Model():
                  device='cpu',
                  output_attentions=False,
                  random_weights=False,
-                 gpt2_version='roberta-base'):       # changed
+                 gpt2_version='gpt2'):
         super()
         self.device = device
-        self.version = gpt2_version
-
-        self.masked_lm = BertForMaskedLM if gpt2_version == 'bert-base-cased' else RobertaForMaskedLM
-        print("Using model:", self.version)
-
-        self.model = self.masked_lm.from_pretrained(         # changed
+        self.model = GPT2LMHeadModel.from_pretrained(
             gpt2_version,
             output_attentions=output_attentions)
         self.model.eval()
@@ -80,16 +75,13 @@ class Model():
         # Options
         self.top_k = 5
         # 12 for GPT-2
-        self.model_base = self.model.bert if gpt2_version == 'bert-base-cased' else self.model.roberta
-        self.num_layers = len(self.model_base.encoder.layer) # c
+        self.num_layers = len(self.model.transformer.h)
         # 768 for GPT-2
-        self.num_neurons = self.model_base.embeddings.word_embeddings.weight.shape[1] # c
+        self.num_neurons = self.model.transformer.wte.weight.shape[1]
         # 12 for GPT-2
-        self.num_heads = self.model_base.encoder.layer[0].attention.self.num_attention_heads # c num of attention heads
+        self.num_heads = self.model.transformer.h[0].attn.n_head
 
     def get_representations(self, context, position):
-        #print("\n get_rep Context : \n")
-        #print(context)
         # Hook for saving the representation
         def extract_representation_hook(module,
                                         input,
@@ -100,30 +92,23 @@ class Model():
             representations[layer] = output[0][position]
         handles = []
         representation = {}
-
         with torch.no_grad():
             # construct all the hooks
             # word embeddings will be layer -1
-            handles.append(self.model_base.embeddings.word_embeddings.register_forward_hook(
+            handles.append(self.model.transformer.wte.register_forward_hook(
                     partial(extract_representation_hook,
                             position=position,
                             representations=representation,
-                            layer=-1))) # c
+                            layer=-1)))
             # hidden layers
             for layer in range(self.num_layers):
-                handles.append(self.model_base.encoder.layer[layer]\
-                                   .output.register_forward_hook(
+                handles.append(self.model.transformer.h[layer]\
+                                   .mlp.register_forward_hook(
                     partial(extract_representation_hook,
                             position=position,
                             representations=representation,
                             layer=layer)))
- 
-            segment_ids = [0] * len(context)
-            token_tensors = torch.tensor([context.tolist()]).to(self.device)
-            segment_tensors = torch.tensor([segment_ids]).to(self.device)
-
-            # do a forward pass to get intermediate neuron values
-            outputs = self.model(token_tensors, token_type_ids = segment_tensors)
+            logits, past = self.model(context)
             for h in handles:
                 h.remove()
         # print(representation[0][:5])
@@ -135,12 +120,24 @@ class Model():
             if len(c) > 1:
                 raise ValueError(f"Multiple tokens not allowed: {c}")
         outputs = [c[0] for c in candidates]
-        #print("context inside new func:", context, context.shape)
-        #logits = self.model(context)[:2]      # changed
-        logits = self.model(context)[0]
-        #print(logits.shape)
+        logits, past = self.model(context)[:2]
+        # print("\noutput = ", len(self.model(context)))
+        # print("context = ", context)
+        # print("candidates = ", candidates)
+        # print("logits = ", logits.shape)
+        # for idx in context:
+
         logits = logits[:, -1, :]
         probs = F.softmax(logits, dim=-1)
+        sorted_probs = torch.argsort(probs)
+        tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
+        # print("Candidate 1 = ", tokenizer.decode([outputs[0]]))
+        # print("Candidate 2 = ", tokenizer.decode([outputs[1]]))
+        # print("Top 5 predictions : ")
+        # print("P(he) and P(she)= ", probs[:, outputs].tolist())
+        # for idx in reversed(sorted_probs[0][-5:]):
+        #     print(tokenizer.decode([idx]), probs[:, idx].tolist()[0])
+        
         return probs[:, outputs].tolist()
 
     def get_probabilities_for_examples_multitoken(self, context, candidates):
@@ -230,7 +227,7 @@ class Model():
             n_list.append(list(np.sort(unsorted_n_list)))
           intervention_rep = alpha * rep[layer][n_list]
           if layer == -1:
-              wte_intervention_handle = self.model_base.embeddings.word_embeddings.register_forward_hook(
+              wte_intervention_handle = self.model.transformer.wte.register_forward_hook(
                   partial(intervention_hook,
                           position=position,
                           neurons=n_list,
@@ -238,8 +235,8 @@ class Model():
                           intervention_type=intervention_type))
               handle_list.append(wte_intervention_handle)
           else:
-              mlp_intervention_handle = self.model_base.encoder.layer[layer]\
-                                            .output.register_forward_hook(
+              mlp_intervention_handle = self.model.transformer.h[layer]\
+                                            .mlp.register_forward_hook(
                   partial(intervention_hook,
                           position=position,
                           neurons=n_list,
@@ -261,7 +258,7 @@ class Model():
         # Recreate model and prune head
         save_model = self.model
         # TODO Make this more efficient
-        self.model = RobertaForMaskedLM.from_pretrained('roberta-base')          # changed
+        self.model = GPT2LMHeadModel.from_pretrained('gpt2')
         self.model.prune_heads({layer: [head]})
         self.model.eval()
 
@@ -306,7 +303,7 @@ class Model():
                 attn_override = d['attention_override']
                 attn_override_mask = d['attention_override_mask']
                 layer = d['layer']
-                hooks.append(self.model_base.encoder.layer[layer].attention.register_forward_hook(
+                hooks.append(self.model.transformer.h[layer].attn.register_forward_hook(
                     partial(intervention_hook,
                             attn_override=attn_override,
                             attn_override_mask=attn_override_mask)))
@@ -332,7 +329,6 @@ class Model():
 
         word2intervention_results = {}
         for word in tqdm(word2intervention, desc='words'):
-            #print("\word = n", word)
             word2intervention_results[word] = self.neuron_intervention_single_experiment(
                 word2intervention[word], intervention_type, layers_to_adj, neurons_to_adj,
                 alpha, intervention_loc=intervention_loc)
@@ -353,12 +349,9 @@ class Model():
             '''
             Compute representations for base terms (one for each side of bias)
             '''
-
-            #print("\nintervention = ", intervention)
             base_representations = self.get_representations(
                 intervention.base_strings_tok[0],
                 intervention.position)
-            # print("\nbase rep = ", base_representations)
             man_representations = self.get_representations(
                 intervention.base_strings_tok[1],
                 intervention.position)
@@ -654,13 +647,10 @@ class Model():
 
 def main():
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
     model = Model(device=DEVICE)
 
-    tokenizer_used = BertTokenizer if model.version == 'bert-base-cased' else RobertaTokenizer
-    tokenizer = tokenizer_used.from_pretrained(model.version)           # changed
-
-    base_sentence = "[CLS] The {} said that [SEP]"
+    base_sentence = "The {} said that"
     biased_word = "teacher"
     intervention = Intervention(
             tokenizer,
