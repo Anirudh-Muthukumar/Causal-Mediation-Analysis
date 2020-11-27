@@ -47,7 +47,7 @@ def get_interventions_winobias(gpt2_version, do_filter, split, model, tokenizer,
     interventions = [ex.to_intervention(tokenizer) for ex in examples]
     return interventions, json_data
 
-def intervene_attention(gpt2_version, do_filter, split, device='cuda', filter_quantile=0.25, random_weights=False):
+def intervene_attention(gpt2_version, do_filter, split, device='cpu', filter_quantile=0.25, random_weights=False):
     model = Model(output_attentions=True, gpt2_version=gpt2_version, device=device, random_weights=random_weights)
     tokenizer = GPT2Tokenizer.from_pretrained(gpt2_version)
 
