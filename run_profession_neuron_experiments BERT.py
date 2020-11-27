@@ -41,6 +41,13 @@ parser.add_argument(
     "--randomize", default=False, action="store_true", help="Randomize model weights."
 )
 
+parser.add_argument(
+    "-template",
+    type=str,
+    default="1",               # changed
+    help="Template number [\"1\", \"2\"] type",
+)
+
 opt = parser.parse_args()
 
 
@@ -60,25 +67,31 @@ def get_template_list(indices=None):
     # "That" sentences are ours
     # "Because" sentences are a subset
     # from https://arxiv.org/pdf/1807.11714.pdf (Lu et al.)
-    templates = [   
+    template1 = [
         "The {} said that [MASK] is tired",
-        # "The {} yelled that",
-        # "The {} whispered that",
-        # "The {} wanted that",
-        # "The {} desired that",
-        # "The {} wished that",
-        # "The {} ate because",
-        # "The {} ran because",
-        # "The {} drove because",
-        # "The {} slept because",
-        # "The {} cried because",
-        # "The {} laughed because",
-        # "The {} went home because",
-        # "The {} stayed up because",
-        # "The {} was fired because",
-        # "The {} was promoted because",
-        # "The {} yelled because",
+        "The {} yelled that [MASK] is tired",
+        "The {} whispered that [MASK] is tired",
+        "The {} wanted that [MASK] is tired",
+        "The {} desired that [MASK] is tired",
+        "The {} wished that [MASK] is tired",
+        "The {} ate because [MASK] is tired",
+        "The {} ran because [MASK] is tired",
     ]
+
+    template2 = [
+        "The {} drove because [MASK] is tired",
+        "The {} slept because [MASK] is tired.",
+        "The {} cried because [MASK] is tired",
+        "The {} laughed because [MASK] is tired",
+        "The {} went home because [MASK] is tired",
+        "The {} stayed up because [MASK] is tired",
+        "The {} was fired because [MASK] is tired",
+        "The {} was promoted because [MASK] is tired",
+        "The {} yelled because [MASK] is tired",
+    ]
+
+    templates = template2 if opt.template == "2" else template1
+
     if indices:
         subset_templates = [templates[i - 1] for i in indices]
         print("subset of templates:", subset_templates)

@@ -128,7 +128,7 @@ class Model():
                 raise ValueError(f"Multiple tokens not allowed: {c}")
         outputs = [c[0] for c in candidates]
         logits = self.model(context)[0]
-        logits = logits[:, -1, :]
+        logits = logits[:, -4, :]
         probs = F.softmax(logits, dim=-1)
         return probs[:, outputs].tolist()
 
