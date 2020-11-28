@@ -6,7 +6,7 @@ from datetime import datetime
 
 import torch
 from torch import mode
-from transformers import BertTokenizer, RobertaTokenizer
+from transformers import BertTokenizer, RobertaTokenizer, GPT2Tokenizer
 
 from experiment import Intervention, Model
 from utils import convert_results_to_pd
@@ -150,16 +150,16 @@ def run_all(
         templates = get_template_list(template_indices)
 
     intervention_types = get_intervention_types()
-    # Initialize Model and Tokenizer.
 
+
+    # Initialize Model and Tokenizer.
     if model_type == "bert-base-cased":
         tokenizer_used = BertTokenizer
     elif model_type == "roberta-base":
         tokenizer_used = RobertaTokenizer
     elif model_type == "gpt2":
-        tokenizer_used = 
+        tokenizer_used = GPT2Tokenizer
 
-    # tokenizer_used = BertTokenizer if model_type == 'bert-base-cased' else RobertaTokenizer
     tokenizer = tokenizer_used.from_pretrained(model_type)
     model = Model(device=device, model=model_type, random_weights=random_weights)
 

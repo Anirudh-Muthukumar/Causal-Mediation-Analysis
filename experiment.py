@@ -7,7 +7,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
-from transformers import BertTokenizer, BertForMaskedLM, RobertaTokenizer, RobertaForMaskedLM
+from transformers import BertTokenizer, BertForMaskedLM, RobertaTokenizer, RobertaForMaskedLM, GPT2LMHeadModel, GPT2Tokenizer
+
 
 from attention_intervention_model import AttentionOverride
 from utils import batch, convert_results_to_pd
@@ -64,22 +65,43 @@ class Model():
         super()
         self.device = device
         self.version = model
+        
+        self.model_type = None
 
-        self.masked_lm = BertForMaskedLM if model == 'bert-base-cased' else RobertaForMaskedLM
-
-        self.model = self.masked_lm.from_pretrained(
+        if model in ["bert-base-cased", "roberta-base"]:
+            self.model_type = "MLM"
+            self.masked_lm = BertForMaskedLM if model == 'bert-base-cased' else RobertaForMaskedLM
+            self.model = self.masked_lm.from_pretrained(
             model,
             output_attentions=output_attentions)
-        self.model.eval()
-        self.model.to(device)
-        if random_weights:
-            print('Randomizing weights')
-            self.model.init_weights()
+            self.model.eval()
+            self.model.to(device)
+            if random_weights:
+                print('Randomizing weights')
+                self.model.init_weights()
 
-        self.model_base = self.model.bert if model == 'bert-base-cased' else self.model.roberta
-        self.num_layers = len(self.model_base.encoder.layer)
-        self.num_neurons = self.model_base.embeddings.word_embeddings.weight.shape[1]
-        self.num_heads = self.model_base.encoder.layer[0].attention.self.num_attention_heads
+            self.model_base = self.model.bert if model == 'bert-base-cased' else self.model.roberta
+            self.num_layers = len(self.model_base.encoder.layer)
+            self.num_neurons = self.model_base.embeddings.word_embeddings.weight.shape[1]
+            self.num_heads = self.model_base.encoder.layer[0].attention.self.num_attention_heads
+
+        elif model in ["gpt2"] : 
+            self.model = GPT2LMHeadModel.from_pretrained(
+            model,
+            output_attentions=output_attentions)
+            self.model.eval()
+            self.model.to(device)
+            if random_weights:
+                print('Randomizing weights')
+                self.model.init_weights()
+                
+            self.top_k = 5
+            # 12 for GPT-2
+            self.num_layers = len(self.model.transformer.h)
+            # 768 for GPT-2
+            self.num_neurons = self.model.transformer.wte.weight.shape[1]
+            # 12 for GPT-2
+            self.num_heads = self.model.transformer.h[0].attn.n_head
 
     def get_representations(self, context, position):
         # Hook for saving the representation
@@ -94,28 +116,42 @@ class Model():
         representation = {}
 
         with torch.no_grad():
-            # construct all the hooks
-            # word embeddings will be layer -1
-            handles.append(self.model_base.embeddings.word_embeddings.register_forward_hook(
-                    partial(extract_representation_hook,
-                            position=position,
-                            representations=representation,
-                            layer=-1)))
-            # hidden layers
-            for layer in range(self.num_layers):
-                handles.append(self.model_base.encoder.layer[layer]\
-                                   .output.register_forward_hook(
-                    partial(extract_representation_hook,
-                            position=position,
-                            representations=representation,
-                            layer=layer)))
- 
-            segment_ids = [0] * len(context)
-            token_tensors = torch.tensor([context.tolist()]).to(self.device)
-            segment_tensors = torch.tensor([segment_ids]).to(self.device)
+            if self.model_type == "MLM":
+                handles.append(self.model_base.embeddings.word_embeddings.register_forward_hook(
+                        partial(extract_representation_hook,
+                                position=position,
+                                representations=representation,
+                                layer=-1)))
+                # hidden layers
+                for layer in range(self.num_layers):
+                    handles.append(self.model_base.encoder.layer[layer]\
+                                    .output.register_forward_hook(
+                        partial(extract_representation_hook,
+                                position=position,
+                                representations=representation,
+                                layer=layer)))
+    
+                segment_ids = [0] * len(context)
+                token_tensors = torch.tensor([context.tolist()]).to(self.device)
+                segment_tensors = torch.tensor([segment_ids]).to(self.device)
+                outputs = self.model(token_tensors, token_type_ids = segment_tensors)
+            
+            elif self.model_type == "LM":
+                handles.append(self.model.transformer.wte.register_forward_hook(
+                        partial(extract_representation_hook,
+                                position=position,
+                                representations=representation,
+                                layer=-1)))
+                # hidden layers
+                for layer in range(self.num_layers):
+                    handles.append(self.model.transformer.h[layer]\
+                                    .mlp.register_forward_hook(
+                        partial(extract_representation_hook,
+                                position=position,
+                                representations=representation,
+                                layer=layer)))
+                logits, past = self.model(context)
 
-            # do a forward pass to get intermediate neuron values
-            outputs = self.model(token_tensors, token_type_ids = segment_tensors)
             for h in handles:
                 h.remove()
 
@@ -126,10 +162,20 @@ class Model():
         for c in candidates:
             if len(c) > 1:
                 raise ValueError(f"Multiple tokens not allowed: {c}")
+
         outputs = [c[0] for c in candidates]
-        logits = self.model(context)[0]
-        logits = logits[:, -4, :]
-        probs = F.softmax(logits, dim=-1)
+        probs = None
+
+        if self.model_type == "MLM":
+            logits = self.model(context)[0]
+            logits = logits[:, -4, :]
+            probs = F.softmax(logits, dim=-1)
+        
+        elif self.model_type == "LM":
+            logits, past = self.model(context)[:2]
+            logits = logits[:, -1, :]
+            probs = F.softmax(logits, dim=-1)
+
         return probs[:, outputs].tolist()
 
     def get_probabilities_for_examples_multitoken(self, context, candidates):
@@ -211,6 +257,8 @@ class Model():
         batch_size = len(neurons)
         context = context.unsqueeze(0).repeat(batch_size, 1)
         handle_list = []
+        new_probabilities = None 
+
         for layer in set(layers):
           neuron_loc = np.where(np.array(layers) == layer)[0]
           n_list = []
@@ -218,28 +266,54 @@ class Model():
             unsorted_n_list = [n[i] for i in neuron_loc]
             n_list.append(list(np.sort(unsorted_n_list)))
           intervention_rep = alpha * rep[layer][n_list]
-          if layer == -1:
-              wte_intervention_handle = self.model_base.embeddings.word_embeddings.register_forward_hook(
-                  partial(intervention_hook,
-                          position=position,
-                          neurons=n_list,
-                          intervention=intervention_rep,
-                          intervention_type=intervention_type))
-              handle_list.append(wte_intervention_handle)
+
+          if self.model_type == "MLM":
+            if layer == -1:
+                wte_intervention_handle = self.model_base.embeddings.word_embeddings.register_forward_hook(
+                    partial(intervention_hook,
+                            position=position,
+                            neurons=n_list,
+                            intervention=intervention_rep,
+                            intervention_type=intervention_type))
+                handle_list.append(wte_intervention_handle)
+            else:
+                mlp_intervention_handle = self.model_base.encoder.layer[layer]\
+                                                .output.register_forward_hook(
+                    partial(intervention_hook,
+                            position=position,
+                            neurons=n_list,
+                            intervention=intervention_rep,
+                            intervention_type=intervention_type))
+                handle_list.append(mlp_intervention_handle)
+            new_probabilities = self.get_probabilities_for_examples(
+                context,
+                outputs)
+        
           else:
-              mlp_intervention_handle = self.model_base.encoder.layer[layer]\
-                                            .output.register_forward_hook(
-                  partial(intervention_hook,
-                          position=position,
-                          neurons=n_list,
-                          intervention=intervention_rep,
-                          intervention_type=intervention_type))
-              handle_list.append(mlp_intervention_handle)
-        new_probabilities = self.get_probabilities_for_examples(
-            context,
-            outputs)
+              if layer == -1:
+                wte_intervention_handle = self.model.transformer.wte.register_forward_hook(
+                    partial(intervention_hook,
+                            position=position,
+                            neurons=n_list,
+                            intervention=intervention_rep,
+                            intervention_type=intervention_type))
+                handle_list.append(wte_intervention_handle)
+              else:
+                mlp_intervention_handle = self.model.transformer.h[layer]\
+                                                .mlp.register_forward_hook(
+                    partial(intervention_hook,
+                            position=position,
+                            neurons=n_list,
+                            intervention=intervention_rep,
+                            intervention_type=intervention_type))
+                handle_list.append(mlp_intervention_handle)
+                new_probabilities = self.get_probabilities_for_examples(
+                context,
+                outputs)
+
         for hndle in handle_list:
           hndle.remove()
+
         return new_probabilities
 
     def head_pruning_intervention(self,
@@ -249,8 +323,13 @@ class Model():
                                   head):
         # Recreate model and prune head
         save_model = self.model
+
         # TODO Make this more efficient
-        self.model = self.masked_lm.from_pretrained(self.model.version)
+        if self.model_type == "MLM":
+            self.model = self.masked_lm.from_pretrained(self.model.version)
+        elif self.model_type == "LM":
+            self.model = GPT2LMHeadModel.from_pretrained('gpt2')
+
         self.model.prune_heads({layer: [head]})
         self.model.eval()
 
@@ -295,10 +374,19 @@ class Model():
                 attn_override = d['attention_override']
                 attn_override_mask = d['attention_override_mask']
                 layer = d['layer']
-                hooks.append(self.model_base.encoder.layer[layer].attention.register_forward_hook(
+                
+                if self.model_type == "MLM":
+                    hooks.append(self.model_base.encoder.layer[layer].attention.register_forward_hook(
+                        partial(intervention_hook,
+                                attn_override=attn_override,
+                                attn_override_mask=attn_override_mask)))
+                
+                elif self.model_type == "LM":
+                    hooks.append(self.model.transformer.h[layer].attn.register_forward_hook(
                     partial(intervention_hook,
                             attn_override=attn_override,
                             attn_override_mask=attn_override_mask)))
+
 
             new_probabilities = self.get_probabilities_for_examples_multitoken(
                 context,
