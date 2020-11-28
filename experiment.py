@@ -86,6 +86,7 @@ class Model():
             self.num_heads = self.model_base.encoder.layer[0].attention.self.num_attention_heads
 
         elif model in ["gpt2"] : 
+            self.model_type = "LM"
             self.model = GPT2LMHeadModel.from_pretrained(
             model,
             output_attentions=output_attentions)
@@ -289,8 +290,8 @@ class Model():
                 context,
                 outputs)
         
-          else:
-              if layer == -1:
+          elif self.model_type == "LM":
+            if layer == -1:
                 wte_intervention_handle = self.model.transformer.wte.register_forward_hook(
                     partial(intervention_hook,
                             position=position,
@@ -298,7 +299,7 @@ class Model():
                             intervention=intervention_rep,
                             intervention_type=intervention_type))
                 handle_list.append(wte_intervention_handle)
-              else:
+            else:
                 mlp_intervention_handle = self.model.transformer.h[layer]\
                                                 .mlp.register_forward_hook(
                     partial(intervention_hook,
@@ -307,9 +308,10 @@ class Model():
                             intervention=intervention_rep,
                             intervention_type=intervention_type))
                 handle_list.append(mlp_intervention_handle)
-                new_probabilities = self.get_probabilities_for_examples(
-                context,
-                outputs)
+                
+            new_probabilities = self.get_probabilities_for_examples(
+            context,
+            outputs)
 
         for hndle in handle_list:
           hndle.remove()

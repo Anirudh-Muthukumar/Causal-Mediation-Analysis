@@ -144,13 +144,16 @@ def run_all(
     # Set up all the potential combinations.
     professions = get_profession_list()
 
+    templates = None 
+
     if model_type in ["bert-base-cased", "roberta-base"]:
-        templates = get_template_list("MLM", template_indices)
+        templates = get_template_list(template_indices, "MLM")
     elif model_type in ["gpt2"]:
         templates = get_template_list(template_indices)
 
     intervention_types = get_intervention_types()
 
+    tokenizer_used = None
 
     # Initialize Model and Tokenizer.
     if model_type == "bert-base-cased":
