@@ -5,7 +5,8 @@ import os
 from datetime import datetime
 
 import torch
-from transformers import GPT2Tokenizer
+from torch import mode
+from transformers import BertTokenizer, RobertaTokenizer
 
 from experiment import Intervention, Model
 from utils import convert_results_to_pd
@@ -15,8 +16,15 @@ parser = argparse.ArgumentParser(description="Run a set of neuron experiments.")
 parser.add_argument(
     "-model",
     type=str,
-    default="distilgpt2",
-    help="""Model type [distilgpt2, gpt-2, etc.].""",
+    default="bert-base-cased",               # changed
+    help="""Model type [bert-base-cased, roberta-base, etc.].""",
+)
+
+parser.add_argument(
+    "-itype",
+    type=str,
+    default="man_direct",               # changed
+    help="Intervention type",
 )
 
 parser.add_argument(
@@ -34,6 +42,13 @@ parser.add_argument(
     "--randomize", default=False, action="store_true", help="Randomize model weights."
 )
 
+parser.add_argument(
+    "-template",
+    type=str,
+    default="1",               # changed
+    help="Template number [\"1\", \"2\"] type",
+)
+
 opt = parser.parse_args()
 
 
@@ -48,12 +63,9 @@ def get_profession_list():
     return word_list
 
 
-def get_template_list(indices=None):
-    # Get list of all considered templates
-    # "That" sentences are ours
-    # "Because" sentences are a subset
-    # from https://arxiv.org/pdf/1807.11714.pdf (Lu et al.)
-    templates = [
+def get_template_list(indices=None, model = "LM"):
+
+    template1 = [
         "The {} said that",
         "The {} yelled that",
         "The {} whispered that",
@@ -62,6 +74,9 @@ def get_template_list(indices=None):
         "The {} wished that",
         "The {} ate because",
         "The {} ran because",
+    ]
+
+    template2 = [
         "The {} drove because",
         "The {} slept because",
         "The {} cried because",
@@ -72,6 +87,13 @@ def get_template_list(indices=None):
         "The {} was promoted because",
         "The {} yelled because",
     ]
+
+    templates = template2 if opt.template == "2" else template1
+
+    if model == "MLM":
+        for i in range(len(templates)):
+            templates[i] = templates[i] + " [MASK] is tired"
+
     if indices:
         subset_templates = [templates[i - 1] for i in indices]
         print("subset of templates:", subset_templates)
@@ -82,10 +104,11 @@ def get_template_list(indices=None):
 
 def get_intervention_types():
     return [
-        "man_direct",
-        "man_indirect",
-        "woman_direct",
-        "woman_indirect",
+        opt.itype
+        #"man_direct",
+        #"man_indirect",
+        #"woman_direct",
+        #"woman_indirect",
     ]
 
 
@@ -111,7 +134,7 @@ def construct_interventions(base_sent, professions, tokenizer, DEVICE):
 
 
 def run_all(
-    model_type="gpt2",
+    model_type="bert-base-cased",
     device="cuda",
     out_dir=".",
     random_weights=False,
@@ -120,11 +143,25 @@ def run_all(
     print("Model:", model_type, flush=True)
     # Set up all the potential combinations.
     professions = get_profession_list()
-    templates = get_template_list(template_indices)
+
+    if model_type in ["bert-base-cased", "roberta-base"]:
+        templates = get_template_list("MLM", template_indices)
+    elif model_type in ["gpt2"]:
+        templates = get_template_list(template_indices)
+
     intervention_types = get_intervention_types()
     # Initialize Model and Tokenizer.
-    tokenizer = GPT2Tokenizer.from_pretrained(model_type)
-    model = Model(device=device, gpt2_version=model_type, random_weights=random_weights)
+
+    if model_type == "bert-base-cased":
+        tokenizer_used = BertTokenizer
+    elif model_type == "roberta-base":
+        tokenizer_used = RobertaTokenizer
+    elif model_type == "gpt2":
+        tokenizer_used = 
+
+    # tokenizer_used = BertTokenizer if model_type == 'bert-base-cased' else RobertaTokenizer
+    tokenizer = tokenizer_used.from_pretrained(model_type)
+    model = Model(device=device, model=model_type, random_weights=random_weights)
 
     # Set up folder if it does not exist.
     dt_string = datetime.now().strftime("%Y%m%d")
