@@ -16,10 +16,9 @@ from utils import batch, convert_results_to_pd
 np.random.seed(1)
 torch.manual_seed(1)
 
-
-bert_models = ["bert-base-cased", "bert-base-uncased", "bert-large-cased"]
-roberta_models = ["roberta-base", "roberta-large", "distilroberta-base"]
-gpt2_models =["gpt2", "gpt2-medium", "gpt2-large"]
+bert_models = ["bert-base-cased", "bert-base-uncased", "distilbert-base-cased"]
+roberta_models = ["roberta-base", "roberta-base-openai-detector", "distilroberta-base"]
+gpt2_models =["gpt2", "gpt2-medium", "distilgpt2"]
 
 
 class Intervention():

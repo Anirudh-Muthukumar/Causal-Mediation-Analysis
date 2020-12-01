@@ -1,9 +1,9 @@
 """Run all the extraction for a model across many templates.
 
 Models:
-bert-base-cased, bert-base-uncased, bert-large-cased
-roberta-base, roberta-large, distilroberta-base
-gpt2, gpt2-medium, gpt2-large
+bert-base-cased, bert-base-uncase
+roberta-base, distilroberta-base, roberta_base_openai_detector
+gpt2, gpt2-medium, distlgpt2
 """
 import argparse
 import os
@@ -17,9 +17,9 @@ from experiment import Intervention, Model
 from utils import convert_results_to_pd
 
 
-bert_models = ["bert-base-cased", "bert-base-uncased", "bert-large-cased"]
-roberta_models = ["roberta-base", "roberta-large", "distilroberta-base"]
-gpt2_models =["gpt2", "gpt2-medium", "gpt2-large"]
+bert_models = ["bert-base-cased", "bert-base-uncased"]
+roberta_models = ["roberta-base", "roberta-base-openai-detector", "distilroberta-base"]
+gpt2_models =["gpt2", "gpt2-medium", "distilgpt2"]
 
 parser = argparse.ArgumentParser(description="Run a set of neuron experiments.")
 
