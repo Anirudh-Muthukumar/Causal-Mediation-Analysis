@@ -16,6 +16,10 @@ from utils import batch, convert_results_to_pd
 np.random.seed(1)
 torch.manual_seed(1)
 
+bert_models = ["bert-base-cased", "bert-base-uncased", "distilbert-base-cased"]
+roberta_models = ["roberta-base", "roberta-base-openai-detector", "distilroberta-base"]
+gpt2_models =["gpt2", "gpt2-medium", "distilgpt2"]
+
 
 class Intervention():
     '''
@@ -32,7 +36,6 @@ class Intervention():
         self.enc = tokenizer
         # All the initial strings
         # First item should be neutral, others tainted
-
         self.base_strings = [base_string.format(s, s)
                              for s in substitutes]
         # Tokenized bases
@@ -67,27 +70,29 @@ class Model():
         self.device = device
         self.version = model
         
-        self.model_type = None
+        self.is_bert = model in bert_models
+        self.is_roberta = model in roberta_models
+        self.is_gpt2 = model in gpt2_models
 
-        if model in ["bert-base-cased", "roberta-base"]:
-            self.model_type = "MLM"
-            self.masked_lm = BertForMaskedLM if model == 'bert-base-cased' else RobertaForMaskedLM
-            self.model = self.masked_lm.from_pretrained(
-            model,
-            output_attentions=output_attentions)
+        if self.is_bert or self.is_roberta: 
+
+            self.model = (  BertForMaskedLM if self.is_bert else
+                            RobertaForMaskedLM).from_pretrained(
+                                model,
+                                output_attentions=output_attentions)
+            
             self.model.eval()
             self.model.to(device)
             if random_weights:
                 print('Randomizing weights')
                 self.model.init_weights()
 
-            self.model_base = self.model.bert if model == 'bert-base-cased' else self.model.roberta
+            self.model_base = self.model.bert if self.is_bert else self.model.roberta
             self.num_layers = len(self.model_base.encoder.layer)
             self.num_neurons = self.model_base.embeddings.word_embeddings.weight.shape[1]
             self.num_heads = self.model_base.encoder.layer[0].attention.self.num_attention_heads
 
-        elif model in ["gpt2"] : 
-            self.model_type = "LM"
+        elif self.is_gpt2: 
             self.model = GPT2LMHeadModel.from_pretrained(
             model,
             output_attentions=output_attentions)
@@ -118,7 +123,7 @@ class Model():
         representation = {}
 
         with torch.no_grad():
-            if self.model_type == "MLM":
+            if self.is_bert or self.is_roberta:
                 handles.append(self.model_base.embeddings.word_embeddings.register_forward_hook(
                         partial(extract_representation_hook,
                                 position=position,
@@ -138,7 +143,7 @@ class Model():
                 segment_tensors = torch.tensor([segment_ids]).to(self.device)
                 outputs = self.model(token_tensors, token_type_ids = segment_tensors)
             
-            elif self.model_type == "LM":
+            else:       # GPT2
                 handles.append(self.model.transformer.wte.register_forward_hook(
                         partial(extract_representation_hook,
                                 position=position,
@@ -167,18 +172,16 @@ class Model():
 
         outputs = [c[0] for c in candidates]
         probs = None
-        tok = BertTokenizer.from_pretrained("bert-base-cased")
-        
-        if self.model_type == "MLM":
+
+        if self.is_bert or self.is_roberta:
             logits = self.model(context)[0]
             logits = logits[:, -4, :]
             probs = F.softmax(logits, dim=-1)
         
-        elif self.model_type == "LM":
+        else:   # GPT2
             logits, past = self.model(context)[:2]
             logits = logits[:, -1, :]
             probs = F.softmax(logits, dim=-1)
-
 
         return probs[:, outputs].tolist()
 
@@ -271,7 +274,7 @@ class Model():
             n_list.append(list(np.sort(unsorted_n_list)))
           intervention_rep = alpha * rep[layer][n_list]
 
-          if self.model_type == "MLM":
+          if self.is_bert or self.is_roberta:
             if layer == -1:
                 wte_intervention_handle = self.model_base.embeddings.word_embeddings.register_forward_hook(
                     partial(intervention_hook,
@@ -293,7 +296,7 @@ class Model():
                 context,
                 outputs)
         
-          elif self.model_type == "LM":
+          else:     # GPT2
             if layer == -1:
                 wte_intervention_handle = self.model.transformer.wte.register_forward_hook(
                     partial(intervention_hook,
@@ -330,9 +333,9 @@ class Model():
         save_model = self.model
 
         # TODO Make this more efficient
-        if self.model_type == "MLM":
+        if self.is_roberta or self.is_bert:
             self.model = self.masked_lm.from_pretrained(self.model.version)
-        elif self.model_type == "LM":
+        else:   # GPT2
             self.model = GPT2LMHeadModel.from_pretrained('gpt2')
 
         self.model.prune_heads({layer: [head]})
@@ -380,13 +383,13 @@ class Model():
                 attn_override_mask = d['attention_override_mask']
                 layer = d['layer']
                 
-                if self.model_type == "MLM":
+                if self.is_bert or self.is_roberta:
                     hooks.append(self.model_base.encoder.layer[layer].attention.register_forward_hook(
                         partial(intervention_hook,
                                 attn_override=attn_override,
                                 attn_override_mask=attn_override_mask)))
                 
-                elif self.model_type == "LM":
+                else: # GPT2
                     hooks.append(self.model.transformer.h[layer].attn.register_forward_hook(
                     partial(intervention_hook,
                             attn_override=attn_override,

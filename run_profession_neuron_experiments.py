@@ -12,6 +12,13 @@ from transformers import BertTokenizer, RobertaTokenizer, GPT2Tokenizer
 from experiment import Intervention, Model
 from utils import convert_results_to_pd
 
+
+
+bert_models = ["bert-base-cased", "bert-base-uncased"]
+roberta_models = ["roberta-base", "roberta-base-openai-detector", "distilroberta-base"]
+gpt2_models =["gpt2", "gpt2-medium", "distilgpt2"]
+
+
 parser = argparse.ArgumentParser(description="Run a set of neuron experiments.")
 
 parser.add_argument(
@@ -93,11 +100,15 @@ def get_template_list(indices=None, model = "LM"):
             for name in file:
                 name_list.append(name)
 
-    if opt.gender in ["male", "both"]:
+    elif opt.gender in ["male", "both"]:
         with open("experiment_data/male_names.txt", "r") as file:
             for name in file:
                 name_list.append(name)
     
+    else:
+        print("Please enter proper gender argument!!")
+        exit(0)
+
     template = [
         "The {} said that",
         "The {} yelled that",
@@ -115,7 +126,7 @@ def get_template_list(indices=None, model = "LM"):
         for i in range(len(template)):
             templates.append(name + " is a {}. " + template[i])
 
-    if model == "MLM":
+    if opt.model in bert_models + roberta_models:
         for i in range(len(templates)):
             templates[i] = templates[i] + " [MASK] is tired"
 
@@ -147,7 +158,6 @@ def construct_interventions(base_sent, professions, tokenizer, DEVICE):
             interventions[p] = Intervention(
                 tokenizer, base_sent, [p, "man", "woman"], ["he", "she"], device=DEVICE
             )
-            print("interven:", interventions[p].base_strings)
             used_word_count += 1
         except:
             pass
@@ -170,23 +180,18 @@ def run_all(
     # Set up all the potential combinations.
     professions = get_profession_list()
 
-    templates = None 
-
-    if model_type in ["bert-base-cased", "roberta-base"]:
-        templates = get_template_list(template_indices, "MLM")
-    elif model_type in ["gpt2"]:
-        templates = get_template_list(template_indices)
+    templates = get_template_list(template_indices)
 
     intervention_types = get_intervention_types()
 
     tokenizer_used = None
 
     # Initialize Model and Tokenizer.
-    if model_type == "bert-base-cased":
+    if opt.model in bert_models:
         tokenizer_used = BertTokenizer
-    elif model_type == "roberta-base":
+    elif opt.model in roberta_models:
         tokenizer_used = RobertaTokenizer
-    elif model_type == "gpt2":
+    elif opt.model in gpt2_models:
         tokenizer_used = GPT2Tokenizer
 
     tokenizer = tokenizer_used.from_pretrained(model_type)
