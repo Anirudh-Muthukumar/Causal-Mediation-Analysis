@@ -63,8 +63,30 @@ def get_profession_list():
     return word_list
 
 
+def get_name_list():
+    # Get the list of all considered professions
+    female_name_list = []
+    male_name_list = []
+    with open("experiment_data/female_names.txt", "r") as f:
+        for l in f:
+            # there is only one line that eval"s to an array
+            for j in eval(l):
+                female_name_list.append(j[0])
+
+    with open("experiment_data/male_names.txt", "r") as f:
+        for l in f:
+            # there is only one line that eval"s to an array
+            for j in eval(l):
+                male_name_list.append(j[0])
+
+    return female_name_list, male_name_list
+
+
 def get_template_list(indices=None, model = "LM"):
 
+    # Sophia -> 
+    # John 
+    
     template1 = [
         "The {} said that",
         "The {} yelled that",
@@ -76,19 +98,19 @@ def get_template_list(indices=None, model = "LM"):
         "The {} ran because",
     ]
 
-    template2 = [
-        "The {} drove because",
-        "The {} slept because",
-        "The {} cried because",
-        "The {} laughed because",
-        "The {} went home because",
-        "The {} stayed up because",
-        "The {} was fired because",
-        "The {} was promoted because",
-        "The {} yelled because",
-    ]
+    # template2 = [
+    #     "The {} drove because",
+    #     "The {} slept because",
+    #     "The {} cried because",
+    #     "The {} laughed because",
+    #     "The {} went home because",
+    #     "The {} stayed up because",
+    #     "The {} was fired because",
+    #     "The {} was promoted because",
+    #     "The {} yelled because",
+    # ]
 
-    templates = template2 if opt.template == "2" else template1
+    templates = template1
 
     if model == "MLM":
         for i in range(len(templates)):
