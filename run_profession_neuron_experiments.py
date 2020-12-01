@@ -1,4 +1,5 @@
-"""Run all the extraction for a model across many templates.
+"""Run all the extraction for a model across many templates. 
+    Models: gpt2, bert-base-cased, roberta-base
 """
 import argparse
 import os
@@ -49,45 +50,55 @@ parser.add_argument(
     help="Template number [\"1\", \"2\"] type",
 )
 
+parser.add_argument(
+    "-gender",
+    type=str,
+    default="male",               # changed
+    help="Template number ['male', 'female']",
+)
+
 opt = parser.parse_args()
 
 
 def get_profession_list():
     # Get the list of all considered professions
     word_list = []
+    profession_set = set(["advocate", "baker", "clerk", "counselor",
+"dancer", "educator", "instructor", "maid", "nurse", "planner", "poet","psychiatrist",
+"secretary", "singer", "teacher", "therapist", 
+    "acquaintance", "character", "citizen", "correspondent", 
+"employee", "musician", "novelist", "psychologist", "student", "writer", 
+"accountant", "administrator", "adventurer", "ambassador", "banker", "bartender", "chef", "composer", "critic",
+"dean", "dentist", "editor", "entrepreneur", "philosopher", "physician", "trader"])
+
     with open("experiment_data/professions.json", "r") as f:
         for l in f:
             # there is only one line that eval"s to an array
             for j in eval(l):
-                word_list.append(j[0])
+                if j[0] in profession_set:
+                    word_list.append(j[0])
     return word_list
 
-
-def get_name_list():
-    # Get the list of all considered professions
-    female_name_list = []
-    male_name_list = []
-    with open("experiment_data/female_names.txt", "r") as f:
-        for l in f:
-            # there is only one line that eval"s to an array
-            for j in eval(l):
-                female_name_list.append(j[0])
-
-    with open("experiment_data/male_names.txt", "r") as f:
-        for l in f:
-            # there is only one line that eval"s to an array
-            for j in eval(l):
-                male_name_list.append(j[0])
-
-    return female_name_list, male_name_list
 
 
 def get_template_list(indices=None, model = "LM"):
 
     # Sophia -> 
-    # John 
+    # John -> 
+
+    name_list = []
+
+    if opt.gender in  ["female", "both"]:
+        with open("experiment_data/female_names.txt", "r") as file:
+            for name in file:
+                name_list.append(name)
+
+    if opt.gender in ["male", "both"]:
+        with open("experiment_data/male_names.txt", "r") as file:
+            for name in file:
+                name_list.append(name)
     
-    template1 = [
+    template = [
         "The {} said that",
         "The {} yelled that",
         "The {} whispered that",
@@ -98,19 +109,11 @@ def get_template_list(indices=None, model = "LM"):
         "The {} ran because",
     ]
 
-    # template2 = [
-    #     "The {} drove because",
-    #     "The {} slept because",
-    #     "The {} cried because",
-    #     "The {} laughed because",
-    #     "The {} went home because",
-    #     "The {} stayed up because",
-    #     "The {} was fired because",
-    #     "The {} was promoted because",
-    #     "The {} yelled because",
-    # ]
+    templates = []
 
-    templates = template1
+    for name in name_list:
+        for i in range(len(template)):
+            templates.append(name + " is a {}. " + template[i])
 
     if model == "MLM":
         for i in range(len(templates)):
@@ -144,6 +147,7 @@ def construct_interventions(base_sent, professions, tokenizer, DEVICE):
             interventions[p] = Intervention(
                 tokenizer, base_sent, [p, "man", "woman"], ["he", "she"], device=DEVICE
             )
+            print("interven:", interventions[p].base_strings)
             used_word_count += 1
         except:
             pass

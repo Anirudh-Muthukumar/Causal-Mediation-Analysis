@@ -32,7 +32,8 @@ class Intervention():
         self.enc = tokenizer
         # All the initial strings
         # First item should be neutral, others tainted
-        self.base_strings = [base_string.format(s)
+
+        self.base_strings = [base_string.format(s, s)
                              for s in substitutes]
         # Tokenized bases
         self.base_strings_tok = [self.enc.encode(s)
@@ -178,7 +179,7 @@ class Model():
             logits = logits[:, -1, :]
             probs = F.softmax(logits, dim=-1)
 
-        
+
         return probs[:, outputs].tolist()
 
     def get_probabilities_for_examples_multitoken(self, context, candidates):
