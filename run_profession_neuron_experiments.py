@@ -65,12 +65,22 @@ opt = parser.parse_args()
 def get_profession_list():
     # Get the list of all considered professions
     word_list = []
+    profession_set = set([  "advocate", "baker", "clerk", "counselor", "dancer", "educator", "instructor", "maid", "nurse", "planner", "poet","psychiatrist",
+                            "secretary", "singer", "teacher", "therapist", 
+                                "acquaintance", "character", "citizen", "correspondent", 
+                            "employee", "musician", "novelist", "psychologist", "student", "writer", 
+                                "accountant", "administrator", "adventurer", "ambassador", "banker", "bartender", "chef", "composer", "critic",
+                            "dean", "dentist", "editor", "entrepreneur", "philosopher", "physician", "trader"])
+
     with open("experiment_data/professions.json", "r") as f:
         for l in f:
             # there is only one line that eval"s to an array
             for j in eval(l):
-                word_list.append(j[0])
+                if j[0] in profession_set:
+                    word_list.append(j[0])
+                    
     return word_list
+
 
 
 def get_template_list(indices=None):
