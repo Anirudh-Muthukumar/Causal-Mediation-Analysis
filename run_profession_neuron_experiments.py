@@ -198,8 +198,7 @@ def run_all(
     model = Model(device=device, model=model_type, random_weights=random_weights)
 
     # Set up folder if it does not exist.
-    dt_string = datetime.now().strftime("%Y%m%d")
-    folder_name = dt_string + "_neuron_intervention"
+    folder_name = "expt3_neuron_intervention_" + opt.model
     base_path = os.path.join(out_dir, "results", folder_name)
     if random_weights:
         base_path = os.path.join(base_path, "random")
