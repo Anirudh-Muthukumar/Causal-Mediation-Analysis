@@ -4,7 +4,7 @@ import json
 
 import fire
 from pandas import DataFrame
-from transformers import GPT2Tokenizer
+from transformers import GPT2Tokenizer, BertTokenizer, RobertaTokenizer
 
 import winobias
 from attention_utils import perform_interventions, get_odds_ratio
@@ -47,11 +47,21 @@ def get_interventions_winobias(gpt2_version, do_filter, split, model, tokenizer,
     interventions = [ex.to_intervention(tokenizer) for ex in examples]
     return interventions, json_data
 
-def intervene_attention(gpt2_version, do_filter, split, device='cuda', filter_quantile=0.25, random_weights=False):
-    model = Model(output_attentions=True, gpt2_version=gpt2_version, device=device, random_weights=random_weights)
-    tokenizer = GPT2Tokenizer.from_pretrained(gpt2_version)
+def intervene_attention(model_used, do_filter, split, device='cuda', filter_quantile=0.25, random_weights=False):
+    model = Model(output_attentions=True, model=model_used, device=device, random_weights=random_weights)
 
-    interventions, json_data = get_interventions_winobias(gpt2_version, do_filter, split, model, tokenizer,
+
+    # Initialize Model and Tokenizer.
+    if model_used == "bert-base-cased":
+        tokenizer_used = BertTokenizer
+    elif model_used == "roberta-base":
+        tokenizer_used = RobertaTokenizer
+    elif model_used == "gpt2":
+        tokenizer_used = GPT2Tokenizer
+
+    tokenizer = tokenizer_used.from_pretrained(model_used)
+
+    interventions, json_data = get_interventions_winobias(model_used, do_filter, split, model, tokenizer,
                                                             device, filter_quantile)
     results = perform_interventions(interventions, model)
     json_data['mean_total_effect'] = DataFrame(results).total_effect.mean()
@@ -59,8 +69,8 @@ def intervene_attention(gpt2_version, do_filter, split, device='cuda', filter_qu
     json_data['mean_model_direct_effect'] = DataFrame(results).direct_effect_model.mean()
     filter_name = 'filtered' if do_filter else 'unfiltered'
     if random_weights:
-        gpt2_version += '_random'
-    fname = f"winobias_data/attention_intervention_{gpt2_version}_{filter_name}_{split}.json"
+        model_used += '_random'
+    fname = f"winobias_data/attention_intervention_{model_used}_{filter_name}_{split}.json"
     json_data['results'] = results
     with open(fname, 'w') as f:
         json.dump(json_data, f)

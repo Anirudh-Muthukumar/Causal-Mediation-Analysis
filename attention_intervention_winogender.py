@@ -4,18 +4,18 @@ import json
 
 import fire
 from pandas import DataFrame
-from transformers import GPT2Tokenizer
+from transformers import GPT2Tokenizer, BertTokenizer, RobertaTokenizer
 
 import winogender
 from attention_utils import perform_interventions, get_odds_ratio
 from experiment import Model
 
 
-def get_interventions_winogender(gpt2_version, do_filter, stat, model, tokenizer,
+def get_interventions_winogender(model_used, do_filter, stat, model, tokenizer,
                                 device='cuda', filter_quantile=0.25):
     examples = winogender.load_examples()
     
-    json_data = {'model_version': gpt2_version,
+    json_data = {'model_version': model_used,
             'do_filter': do_filter,
             'stat': stat,
             'num_examples_loaded': len(examples)}
@@ -42,11 +42,20 @@ def get_interventions_winogender(gpt2_version, do_filter, stat, model, tokenizer
     interventions = [ex.to_intervention(tokenizer, stat) for ex in examples]
     return interventions, json_data
 
-def intervene_attention(gpt2_version, do_filter, stat, device='cuda', filter_quantile=0.25, random_weights=False):
-    model = Model(output_attentions=True, gpt2_version=gpt2_version, device=device, random_weights=random_weights)
-    tokenizer = GPT2Tokenizer.from_pretrained(gpt2_version)
+def intervene_attention(model_used, do_filter, stat, device='cuda', filter_quantile=0.25, random_weights=False):
+    model = Model(output_attentions=True, model=model_used, device=device, random_weights=random_weights)
 
-    interventions, json_data = get_interventions_winogender(gpt2_version, do_filter, stat, model, tokenizer,
+    # Initialize Model and Tokenizer.
+    if model_used == "bert-base-cased":
+        tokenizer_used = BertTokenizer
+    elif model_used == "roberta-base":
+        tokenizer_used = RobertaTokenizer
+    elif model_used == "gpt2":
+        tokenizer_used = GPT2Tokenizer
+
+    tokenizer = tokenizer_used.from_pretrained(model_used)
+
+    interventions, json_data = get_interventions_winogender(model_used, do_filter, stat, model, tokenizer,
                                                             device, filter_quantile)
     results = perform_interventions(interventions, model)
     json_data['mean_total_effect'] = DataFrame(results).total_effect.mean()
@@ -54,8 +63,8 @@ def intervene_attention(gpt2_version, do_filter, stat, device='cuda', filter_qua
     json_data['mean_model_direct_effect'] = DataFrame(results).direct_effect_model.mean()
     filter_name = 'filtered' if do_filter else 'unfiltered'
     if random_weights:
-        gpt2_version += '_random'
-    fname = f"winogender_data/attention_intervention_{stat}_{gpt2_version}_{filter_name}.json"
+        model_used += '_random'
+    fname = f"winogender_data/attention_intervention_{stat}_{model_used}_{filter_name}.json"
     json_data['results'] = results
     with open(fname, 'w') as f:
         json.dump(json_data, f)
