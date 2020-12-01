@@ -166,14 +166,11 @@ class Model():
 
         outputs = [c[0] for c in candidates]
         probs = None
-        tok = BertTokenizer.
-        for word in context:
-
-
+        tok = BertTokenizer.from_pretrained("bert-base-cased")
+        
         if self.model_type == "MLM":
             logits = self.model(context)[0]
             logits = logits[:, -4, :]
-            
             probs = F.softmax(logits, dim=-1)
         
         elif self.model_type == "LM":
@@ -181,6 +178,7 @@ class Model():
             logits = logits[:, -1, :]
             probs = F.softmax(logits, dim=-1)
 
+        
         return probs[:, outputs].tolist()
 
     def get_probabilities_for_examples_multitoken(self, context, candidates):
