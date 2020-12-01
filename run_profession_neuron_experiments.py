@@ -1,4 +1,9 @@
 """Run all the extraction for a model across many templates.
+
+Models:
+bert-base-cased, bert-base-uncased, bert-large-cased
+roberta-base, roberta-large, distilroberta-base
+gpt2, gpt2-medium, gpt2-large
 """
 import argparse
 import os
@@ -10,6 +15,11 @@ from transformers import BertTokenizer, RobertaTokenizer, GPT2Tokenizer
 
 from experiment import Intervention, Model
 from utils import convert_results_to_pd
+
+
+bert_models = ["bert-base-cased", "bert-base-uncased", "bert-large-cased"]
+roberta_models = ["roberta-base", "roberta-large", "distilroberta-base"]
+gpt2_models =["gpt2", "gpt2-medium", "gpt2-large"]
 
 parser = argparse.ArgumentParser(description="Run a set of neuron experiments.")
 
@@ -63,7 +73,7 @@ def get_profession_list():
     return word_list
 
 
-def get_template_list(indices=None, model = "LM"):
+def get_template_list(indices=None):
 
     template1 = [
         "The {} said that",
@@ -76,21 +86,9 @@ def get_template_list(indices=None, model = "LM"):
         "The {} ran because",
     ]
 
-    template2 = [
-        "The {} drove because",
-        "The {} slept because",
-        "The {} cried because",
-        "The {} laughed because",
-        "The {} went home because",
-        "The {} stayed up because",
-        "The {} was fired because",
-        "The {} was promoted because",
-        "The {} yelled because",
-    ]
+    templates = template1
 
-    templates = template2 if opt.template == "2" else template1
-
-    if model == "MLM":
+    if opt.model in bert_models + roberta_models:
         for i in range(len(templates)):
             templates[i] = templates[i] + " [MASK] is tired"
 
@@ -144,27 +142,30 @@ def run_all(
     # Set up all the potential combinations.
     professions = get_profession_list()
 
-    templates = None 
-
-    if model_type in ["bert-base-cased", "roberta-base"]:
-        templates = get_template_list(template_indices, "MLM")
-    elif model_type in ["gpt2"]:
-        templates = get_template_list(template_indices)
+    templates = get_template_list(template_indices)
 
     intervention_types = get_intervention_types()
 
     tokenizer_used = None
 
     # Initialize Model and Tokenizer.
-    if model_type == "bert-base-cased":
-        tokenizer_used = BertTokenizer
-    elif model_type == "roberta-base":
-        tokenizer_used = RobertaTokenizer
-    elif model_type == "gpt2":
-        tokenizer_used = GPT2Tokenizer
+    #is_bert, is_roberta, is_gpt = False, False, False
 
-    tokenizer = tokenizer_used.from_pretrained(model_type)
-    model = Model(device=device, model=model_type, random_weights=random_weights)
+    if opt.model in bert_models:
+        #is_bert = True
+        tokenizer_used = BertTokenizer
+    elif opt.model in roberta_models:
+        #is_roberta = True
+        tokenizer_used = RobertaTokenizer
+    elif opt.model in gpt2_models:
+        #is_gpt2 = True
+        tokenizer_used = GPT2Tokenizer
+    else:
+        print("Please enter a valid model!!")
+        exit(0)
+
+    tokenizer = tokenizer_used.from_pretrained(opt.model)
+    model = Model(device=device, model=opt.model, random_weights=random_weights)
 
     # Set up folder if it does not exist.
     dt_string = datetime.now().strftime("%Y%m%d")
