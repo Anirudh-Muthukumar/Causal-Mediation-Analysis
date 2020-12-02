@@ -4,6 +4,7 @@
 import argparse
 import os
 from datetime import datetime
+import pandas as pd
 
 import torch
 from torch import mode
@@ -31,7 +32,7 @@ parser.add_argument(
 parser.add_argument(
     "-itype",
     type=str,
-    default="man_direct",               # changed
+    default="all",               # changed
     help="Intervention type",
 )
 
@@ -60,8 +61,22 @@ parser.add_argument(
 parser.add_argument(
     "-gender",
     type=str,
-    default="male",               # changed
-    help="Template number ['male', 'female']",
+    default="both",               # changed
+    help="Gender ['male', 'female']",
+)
+
+parser.add_argument(
+    "-race",
+    type=str,
+    default="pctaian_female",               # changed
+    help="Race",
+)
+
+parser.add_argument(
+    "-k",
+    type=str,
+    default="5",               # changed
+    help="Race",
 )
 
 opt = parser.parse_args()
@@ -88,26 +103,39 @@ def get_profession_list():
 
 
 
-def get_template_list(indices=None, model = "LM"):
-
-    # Sophia -> 
-    # John -> 
+def get_template_list(indices=None):
 
     name_list = []
 
-    if opt.gender in  ["female", "both"]:
+    if opt.gender == "female":
         with open("experiment_data/female_names.txt", "r") as file:
             for name in file:
-                name_list.append(name)
+                if name[-1:] == '\n':
+                    name_list.append(name[:-1])
+                else:
+                    name_list.append(name)
 
-    elif opt.gender in ["male", "both"]:
+    elif opt.gender == "male": 
         with open("experiment_data/male_names.txt", "r") as file:
             for name in file:
-                name_list.append(name)
+                if name[-1:] == '\n':
+                    name_list.append(name[:-1])
+                else:
+                    name_list.append(name)
+
+    elif opt.gender == "both":      # Experiment 4
+        file_name = "experiment_data/" + opt.race + "_female.csv"
+        df = pd.read_csv(file_name, header = None)
+        name_list += df[0][:int(opt.k)].tolist()
+        
+        file_name = "experiment_data/" + opt.race + "_male.csv"
+        df = pd.read_csv(file_name, header = None)
+        name_list += df[0][:int(opt.k)].tolist()
     
     else:
-        print("Please enter proper gender argument!!")
+        print("Please enter a valid gender!!")
         exit(0)
+
 
     template = [
         "The {} said that",
@@ -125,6 +153,7 @@ def get_template_list(indices=None, model = "LM"):
     for name in name_list:
         for i in range(len(template)):
             templates.append(name + " is a {}. " + template[i])
+    
 
     if opt.model in bert_models + roberta_models:
         for i in range(len(templates)):
@@ -139,13 +168,10 @@ def get_template_list(indices=None, model = "LM"):
 
 
 def get_intervention_types():
-    return [
-        opt.itype
-        #"man_direct",
-        #"man_indirect",
-        #"woman_direct",
-        #"woman_indirect",
-    ]
+    if opt.itype == "all":
+        return ["man_direct", "man_indirect", "woman_direct", "woman_indirect"]
+
+    return [ opt.itype ]
 
 
 def construct_interventions(base_sent, professions, tokenizer, DEVICE):
@@ -197,16 +223,31 @@ def run_all(
     tokenizer = tokenizer_used.from_pretrained(model_type)
     model = Model(device=device, model=model_type, random_weights=random_weights)
 
+    is_expt4 = False 
+    base_path = None 
+
     # Set up folder if it does not exist.
-    folder_name = "expt3_neuron_intervention_" + opt.model + "_" + opt.gender
-    base_path = os.path.join(out_dir, "results", folder_name)
+    if opt.itype != "all":
+        folder_name = "expt3_neuron_intervention_" + opt.model + "_" + opt.gender
+        base_path = os.path.join(out_dir, "results", folder_name)
+    else:
+        is_expt4 = True 
+        base_path = os.path.join(out_dir, "results", "expt4_neuron_intervention")
+
     if random_weights:
         base_path = os.path.join(base_path, "random")
+
     if not os.path.exists(base_path):
         os.makedirs(base_path)
 
     # Iterate over all possible templates.
     for temp in templates:
+        if is_expt4:
+            folder_name = temp.split()[0] + "_" + opt.model
+            base_path = os.path.join(base_path, folder_name)
+            if not os.path.exists(base_path):
+                os.makedirs(base_path)
+
         print("Running template '{}' now...".format(temp), flush=True)
         # Fill in all professions into current template
         interventions = construct_interventions(temp, professions, tokenizer, device)
