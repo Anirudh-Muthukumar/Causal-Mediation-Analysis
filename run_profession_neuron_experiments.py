@@ -240,14 +240,16 @@ def run_all(
     if not os.path.exists(base_path):
         os.makedirs(base_path)
 
-    # Iterate over all possible templates.
+    root = base_path 
+
     for temp in templates:
+        folder_name = None
         if is_expt4:
             folder_name = temp.split()[0] + "_" + opt.model
-            base_path = os.path.join(base_path, folder_name)
+            base_path = os.path.join(root, folder_name)
             if not os.path.exists(base_path):
                 os.makedirs(base_path)
-
+        
         print("Running template '{}' now...".format(temp), flush=True)
         # Fill in all professions into current template
         interventions = construct_interventions(temp, professions, tokenizer, device)
@@ -260,12 +262,11 @@ def run_all(
             )
 
             df = convert_results_to_pd(interventions, intervention_results)
-            # Generate file name.
             temp_string = "_".join(temp.replace("{}", "X").split())
             model_type_string = model_type
             fname = "_".join([temp_string, itype, model_type_string])
-            # Finally, save each exp separately.
             df.to_csv(os.path.join(base_path, fname + ".csv"))
+
 
 
 if __name__ == "__main__":
