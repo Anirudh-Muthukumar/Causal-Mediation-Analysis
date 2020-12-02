@@ -73,9 +73,9 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-k",
-    type=str,
-    default="5",               # changed
+    "-idx",
+    type=int,
+    default=0,               # changed
     help="Race",
 )
 
@@ -126,17 +126,18 @@ def get_template_list(indices=None):
     elif opt.gender == "both":      # Experiment 4
         file_name = "experiment_data/" + opt.race + "_female.csv"
         df = pd.read_csv(file_name, header = None)
-        name_list += df[0][:int(opt.k)].tolist()
+        name_list.append(df[0].iloc[int(opt.idx)])
         
         file_name = "experiment_data/" + opt.race + "_male.csv"
         df = pd.read_csv(file_name, header = None)
-        name_list += df[0][:int(opt.k)].tolist()
+        name_list.append(df[0].iloc[int(opt.idx)])
     
     else:
         print("Please enter a valid gender!!")
         exit(0)
 
-
+    print("Name list:", name_list)
+    
     template = [
         "The {} said that",
         "The {} yelled that",
