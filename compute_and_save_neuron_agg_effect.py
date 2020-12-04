@@ -76,6 +76,17 @@ def get_all_effects(fname, direction="woman"):
 
 
 def main(folder_name="results/20191114_neuron_intervention/", model_name="distilgpt2"):
+    expt = None
+    if "experiment2" in folder_name:
+        expt = 2
+    elif "experiment3" in folder_name:
+        expt = 3
+    elif "experiment4" in folder_name:
+        expt = 4
+    else:
+        print("Please enter a valid folder name")
+        exit(0)
+
     profession_stereotypicality = {}
     with open("experiment_data/professions.json") as f:
         for l in f:
@@ -92,6 +103,7 @@ def main(folder_name="results/20191114_neuron_intervention/", model_name="distil
         for f in os.listdir(folder_name)
         if "_" + model_name + ".csv" in f and f.endswith("csv")
     ]
+
     paths = [os.path.join(folder_name, f) for f in fnames]
     woman_files = [
         f
@@ -99,6 +111,7 @@ def main(folder_name="results/20191114_neuron_intervention/", model_name="distil
         if "woman_indirect" in f
         if os.path.exists(f.replace("indirect", "direct"))
     ]
+
     woman_dfs = []
     for path in woman_files:
         woman_dfs.append(get_all_effects(path))
@@ -117,7 +130,8 @@ def main(folder_name="results/20191114_neuron_intervention/", model_name="distil
 
     # Compute Extra Info
     def get_profession(s):
-        return s.split()[1]
+        # Remove dot from profession name for experiment 3
+        return s.split()[1] if expt == 2  else s.split()[3][:-1]
 
     def get_template(s):
         initial_string = s.split()
@@ -141,8 +155,8 @@ def main(folder_name="results/20191114_neuron_intervention/", model_name="distil
     man_df["definitional"] = man_df["profession"].apply(get_definitionality)
     woman_df["definitional"] = woman_df["profession"].apply(get_definitionality)
 
-    man_df = man_df[man_df["definitional"] > 0.75]
-    woman_df = woman_df[woman_df["definitional"] > 0.75]
+    #man_df = man_df[man_df["definitional"] > 0.75]
+    #woman_df = woman_df[woman_df["definitional"] > 0.75]
 
     # Merge effect based on directionality.
     overall_df = pd.concat(
