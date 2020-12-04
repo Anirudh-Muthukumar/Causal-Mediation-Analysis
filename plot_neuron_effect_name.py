@@ -96,15 +96,18 @@ def main(folder_name="results/", model_name="distilgpt2"):
                                                               subtract(model_effect_layer["odds_ratio_indirect_mean"])
 
 
-    cmap = {"pctblack": "#9b59b6", "pcthispanic": "#3498db", "White":"#95a5a6", "Asian Pacific Islander":"#e74c3c","Asian": "#34495e"}
+    cmap = {"pctblack": "#9b59b6", "pcthispanic": "#3498db", "pctwhite":"#95a5a6", "pctapi":"#e74c3c","pctaian": "#34495e"}
     nlayers = experiment2_effect_layer.shape[0]
+
+    race_lookup = {"pctblack": "Black", "pcthispanic": "Hispanic", "pctwhite":"White", "pctapi":"Asian Pacific Islander",\
+                   "pctaian": "Asian"}
 
     for layerid in range(nlayers):
         for race in diff_effect_layer:
             color = cmap[race]
             # Ignore first column in the df (layerids)
             x = y = diff_effect_layer[race].iloc[layerid].values[1:]
-            plt.scatter(x, y, color = color, label = race)
+            plt.scatter(x, y, color = color, label = race_lookup[race])
             plt.xlabel("Mitigated bias")
             plt.ylabel("Mitigated bias")
             plt.tight_layout()
