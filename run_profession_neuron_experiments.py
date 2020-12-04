@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser(description="Run a set of neuron experiments.")
 parser.add_argument(
     "-model",
     type=str,
-    default="bert-base-cased",               # changed
+    default="distilgpt2",               # changed
     help="""Model type [bert-base-cased, roberta-base, etc.].""",
 )
 
@@ -108,20 +108,14 @@ def get_template_list(indices=None):
     name_list = []
 
     if opt.gender == "female":
-        with open("experiment_data/female_names.txt", "r") as file:
-            for name in file:
-                if name[-1:] == '\n':
-                    name_list.append(name[:-1])
-                else:
-                    name_list.append(name)
+        file_name = "experiment_data/" + opt.race + "_female.csv"
+        df = pd.read_csv(file_name, header = None)
+        name_list += df[0][:int(opt.k)].tolist()
 
     elif opt.gender == "male": 
-        with open("experiment_data/male_names.txt", "r") as file:
-            for name in file:
-                if name[-1:] == '\n':
-                    name_list.append(name[:-1])
-                else:
-                    name_list.append(name)
+        file_name = "experiment_data/" + opt.race + "_male.csv"
+        df = pd.read_csv(file_name, header = None)
+        name_list += df[0][:int(opt.k)].tolist()
 
     elif opt.gender == "both":      # Experiment 4
         file_name = "experiment_data/" + opt.race + "_female.csv"
@@ -136,6 +130,7 @@ def get_template_list(indices=None):
         print("Please enter a valid gender!!")
         exit(0)
 
+    print(name_list)
 
     template = [
         "The {} said that",

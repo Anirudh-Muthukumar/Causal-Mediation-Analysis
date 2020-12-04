@@ -40,10 +40,13 @@ def main(folder_name="results/20191114_neuron_intervention/"):
         "gpt2-medium": "GPT2-medium",
         "gpt2-xl": "GPT2-xl",
         "distilgpt2": "GPT2-distil",
-        "bert-base-cased": "BERT",
-        "roberta-base": "RoBERTa"
+        "bert-base-cased": "BERT-cased",
+        "roberta-base": "RoBERTa",
+        "bert-base-uncased": "BERT-uncased",
+        "roberta-base-openai-detector": "RoBERTa-openai",
+        "distilroberta-base": "RoBERTa-distil",
     }
-    cmap = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71"]
+    cmap = ["#9b59b6", "#3498db", "#95a5a6", "#e74c3c", "#34495e", "#2ecc71", "#fff700", '#023436']
 
     # Load results for all the models.
     neuron_effect_fnames = [f for f in os.listdir(folder_name) if "neuron_effects" in f]
