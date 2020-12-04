@@ -10,6 +10,8 @@ import sys
 
 import pandas as pd
 
+import compute_and_save_neuron_agg_effect_name
+
 
 def analyze_effect_results(results_df, effect, word, alt, savefig=None):
     # calculate odds.
@@ -82,7 +84,8 @@ def main(folder_name="results/20191114_neuron_intervention/", model_name="distil
     elif "experiment3" in folder_name:
         expt = 3
     elif "experiment4" in folder_name:
-        expt = 4
+        compute_and_save_neuron_agg_effect_name.main(folder_name, model_name)
+        exit()
     else:
         print("Please enter a valid folder name")
         exit(0)
@@ -148,6 +151,7 @@ def main(folder_name="results/20191114_neuron_intervention/", model_name="distil
 
     def get_definitionality(vals):
         return abs(profession_stereotypicality[vals]["definitional"])
+
 
     man_df["stereotypicality"] = man_df["profession"].apply(get_stereotypicality)
     woman_df["stereotypicality"] = woman_df["profession"].apply(get_stereotypicality)
