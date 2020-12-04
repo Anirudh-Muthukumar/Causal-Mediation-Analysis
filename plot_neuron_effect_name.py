@@ -113,7 +113,7 @@ def main(folder_name="results/", model_name="distilgpt2"):
             plt.tight_layout()
             plt.legend()
             plt.savefig(
-                os.path.join(expt4_folder, "neuron_layer_effect_layer" + str(layerid) + ".pdf"),
+                os.path.join(expt4_folder, "neuron_layer_effect_layer" + model_name + str(layerid) + ".pdf"),
                 format="pdf",
                 bbox_inches="tight",
             )
