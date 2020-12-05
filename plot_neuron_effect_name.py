@@ -1,13 +1,17 @@
 """
 Plot the mitigated bias for each ethinicity
 
+Note: Make sure the $result_folder_path has the aggregate csv files stored in the following manner:
+for experiment2: in  $result_folder_path/experiment2/
+for experiment4: in  $result_folder_path/experiment4/
+
 Usage:
     python plot_neuron_effect_name.py $result_folder_path $model_name
 """
 
 import os
 import sys
-
+import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -99,14 +103,23 @@ def main(folder_name="results/", model_name="distilgpt2"):
     cmap = {"pctblack": "#9b59b6", "pcthispanic": "#3498db", "pctwhite":"#95a5a6", "pctapi":"#e74c3c","pctaian": "#34495e"}
     nlayers = experiment2_effect_layer.shape[0]
 
-    race_lookup = {"pctblack": "Black", "pcthispanic": "Hispanic", "pctwhite":"White", "pctapi":"Asian Pacific Islander",\
-                   "pctaian": "Asian"}
+    race_lookup = {"pctblack": "Black", "pcthispanic": "Hispanic", "pctwhite":"White", "pctapi":"Asian/Pacific Islander",\
+                   "pctaian": "American Indian & Alaskan Native"}
+
+    indirect_effect_layer_race = {}
+    for race in race_lookup:
+        indirect_effect_layer_race[race] = []
 
     for layerid in range(nlayers):
+        indirect_effect_race_sum = {}
         for race in diff_effect_layer:
             color = cmap[race]
             # Ignore first column in the df (layerids)
             x = y = diff_effect_layer[race].iloc[layerid].values[1:]
+            if race not in indirect_effect_race_sum:
+                indirect_effect_race_sum[race] = 0
+            #print(x)
+            indirect_effect_race_sum[race] += sum([abs(val) for val in x])
             plt.scatter(x, y, color = color, label = race_lookup[race])
             plt.xlabel("Mitigated bias")
             plt.ylabel("Mitigated bias")
@@ -114,10 +127,36 @@ def main(folder_name="results/", model_name="distilgpt2"):
             plt.legend()
             plt.savefig(
                 os.path.join(expt4_folder, "neuron_layer_effect_"+ model_name + "_layer" + str(layerid) + ".pdf"),
-                format="pdf",
+                format='pdf',
                 bbox_inches="tight",
             )
         plt.close()
+        for race in race_lookup:
+            indirect_effect_layer_race[race].append(indirect_effect_race_sum[race])
+
+    # Bar Plot
+    fig, ax = plt.subplots()
+    figsize=(30, 10)
+    width = 0.16
+    x = np.arange(nlayers)
+
+    i = 0
+    for race in race_lookup:
+        ax.bar(x + (i*width), indirect_effect_layer_race[race], width=width, align='center', color=cmap[race], label=race_lookup[race])
+        i+=1
+
+    ax.set_xticks([i+0.2 for i in x])
+    ax.set_xticklabels(x, fontdict={'horizontalalignment':'center'})
+    ax.set_xlabel('Layer')
+    ax.set_ylabel('Indirect effect')
+    ax.legend(bbox_to_anchor=(1.0, 1.0))
+
+    fig.savefig(
+        os.path.join(expt4_folder, "neuron_layer_effect_" + model_name + "_bar_plot" + ".pdf"),
+        format='pdf',
+        bbox_inches="tight",
+    )
+    plt.close()
 
     print("Success, all figures were written.")
 

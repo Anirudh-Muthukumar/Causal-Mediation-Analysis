@@ -1,6 +1,6 @@
 """
 Compute the aggregate effects for each individual neuron.
-Save the effects as $model_neuron_effects.csv.
+Save the effects as $modelname_race_name_neuron_effects.csv.
 
 Usage:
     python compute_and_save_neuron_agg_effect.py $result_file_path $model_name
