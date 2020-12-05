@@ -123,7 +123,9 @@ def main(folder_name="results/20191114_neuron_intervention/", model_name="distil
     ax.set_yticks([0, 1, 2, 3, 4, 5, 6])
     ax.set_yticklabels(["$e^0$", "$e^1$", "$e^2$", "$e^3$", "$e^4$", "$e^5$"])
     sns.despine()
-    plt.savefig(os.path.join(folder_name, "neuron_profession_correlation.pdf"))
+    plt.tight_layout()
+    plt.savefig(os.path.join(folder_name, "neuron_profession_correlation.tif"))
+
 
     effect_corr = pearsonr(profession_df["Bias"], profession_df["Total Effect"])
     print("================")

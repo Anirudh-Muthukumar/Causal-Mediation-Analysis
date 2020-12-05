@@ -89,8 +89,8 @@ def main(folder_name="results/20191114_neuron_intervention/"):
     try:
         handles, labels = plt.gca().get_legend_handles_labels()
         # Modify to fit the order you are getting.
-        order = [3, 5, 2, 4, 0, 1]
-        plt.legend([handles[idx] for idx in order], [labels[idx] for idx in order])
+        order = [3, 5, 2, 4, 0, 1, 6, 7]
+        plt.legend([handles[idx] for idx in order], [labels[idx] for idx in order], bbox_to_anchor=(1.0, 1.0))
     except IndexError:
         plt.legend()
     sns.despine()
@@ -132,8 +132,7 @@ def main(folder_name="results/20191114_neuron_intervention/"):
 
         color_index += 1
         plt.savefig(
-            os.path.join(folder_name, "neuron_layer_effect_" + k + ".pdf"),
-            format="pdf",
+            os.path.join(folder_name, "neuron_layer_effect_" + k + ".tif"),
             bbox_inches="tight",
         )
 
